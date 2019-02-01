@@ -11,9 +11,8 @@ from logging.handlers import TimedRotatingFileHandler
 import requests
 from chainlink import Chainlink
 
-import grader.api_keys as api_key
+import api_keys as api_key
 from config import *
-from grader.utils import get_url, print_usage
 
 # globals
 worker_id = None
@@ -21,6 +20,9 @@ worker_thread = None
 heartbeat_running = True
 worker_running = True
 event_loop = asyncio.new_event_loop()
+
+api_host = None
+api_port = None
 
 # setting up logger
 os.makedirs(LOGS_DIR, exist_ok=True)
@@ -32,6 +34,10 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger()
+
+
+def get_url(endpoint):
+    return "http://{}:{}{}".format(api_host, api_port, endpoint)
 
 
 def signal_handler(sig, frame):
@@ -128,16 +134,24 @@ def register_node():
         exit(-1)
 
 
+def print_usage():
+    print("Wrong number of arguments provided. Usage:\n\tpython grader.py <api host> <api port> <cluster token>")
+
+
 if __name__ == "__main__":
     # check valid usage
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 4:
         print_usage()
         exit(-1)
+
+    api_host = sys.argv[1]
+    api_port = sys.argv[2]
+    token = sys.argv[3]
 
     signal.signal(signal.SIGINT, signal_handler)
 
     # register node to server
-    header = {api_key.AUTH: "Bearer {}".format(sys.argv[1])}
+    header = {api_key.AUTH: "Bearer {}".format(token)}
     register_node()
 
     # run the grader on two separate threads. If any of the routines fail, the grader shuts down
