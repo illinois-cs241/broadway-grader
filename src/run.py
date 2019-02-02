@@ -14,6 +14,8 @@ from chainlink import Chainlink
 import api_keys as api_key
 from config import *
 
+import argparse
+
 # globals
 worker_id = None
 worker_thread = None
@@ -23,6 +25,7 @@ event_loop = asyncio.new_event_loop()
 
 api_host = None
 api_port = None
+use_https = False
 
 # setting up logger
 os.makedirs(LOGS_DIR, exist_ok=True)
@@ -37,7 +40,7 @@ logger = logging.getLogger()
 
 
 def get_url(endpoint):
-    return "http://{}:{}{}".format(api_host, api_port, endpoint)
+    return "{}://{}:{}{}".format("https" if use_https else "http", api_host, api_port, endpoint)
 
 
 def signal_handler(sig, frame):
@@ -139,14 +142,20 @@ def print_usage():
 
 
 if __name__ == "__main__":
-    # check valid usage
-    if len(sys.argv) != 4:
-        print_usage()
-        exit(-1)
+    parser = argparse.ArgumentParser(description="Broadway grader")
 
-    api_host = sys.argv[1]
-    api_port = sys.argv[2]
-    token = sys.argv[3]
+    parser.add_argument("api_host", help="API node host")
+    parser.add_argument("api_port", help="API node port")
+    parser.add_argument("token", help="Cluster token")
+
+    parser.add_argument("--use-https", action="store_const", const=True, default=False, help="Use https")
+
+    args = parser.parse_args()
+
+    api_host = args.api_host
+    api_port = args.api_port
+    token = args.token
+    use_https = args.use_https
 
     signal.signal(signal.SIGINT, signal_handler)
 
