@@ -26,6 +26,7 @@ event_loop = asyncio.new_event_loop()
 api_host = None
 api_port = None
 use_https = False
+workdir = os.getcwd()
 
 # setting up logger
 os.makedirs(LOGS_DIR, exist_ok=True)
@@ -81,7 +82,7 @@ def worker_routine():
 
         # execute job
         try:
-            chain = Chainlink(job[api_key.STAGES], workdir="/tmp")
+            chain = Chainlink(job[api_key.STAGES], workdir=workdir)
             job_results = chain.run({})
         except Exception as ex:
             logger.critical("Grading job failed with exception:\n{}", ex)
@@ -149,6 +150,7 @@ if __name__ == "__main__":
     parser.add_argument("token", help="Cluster token")
 
     parser.add_argument("--use-https", action="store_const", const=True, default=False, help="Use https")
+    parser.add_argument("--workdir", default=workdir, help="Work directory for chainlink")
 
     args = parser.parse_args()
 
@@ -156,6 +158,7 @@ if __name__ == "__main__":
     api_port = args.api_port
     token = args.token
     use_https = args.use_https
+    workdir = args.workdir
 
     signal.signal(signal.SIGINT, signal_handler)
 
