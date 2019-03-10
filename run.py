@@ -3,24 +3,24 @@ import logging
 import os
 import signal
 import socket
-import sys
 import time
+import argparse
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from logging.handlers import TimedRotatingFileHandler
 
 import requests
 from chainlink import Chainlink
 
-import grader.api_keys as api_key
+from src import api_keys as api_key
 from config import *
-from grader.utils import get_url, print_usage
+from src.utils import get_url
 
 # globals
 worker_id = None
 worker_thread = None
 heartbeat_running = True
 worker_running = True
-event_loop = asyncio.new_event_loop()
+cluster_token = None
 
 # setting up logger
 os.makedirs(LOGS_DIR, exist_ok=True)
@@ -40,6 +40,7 @@ def signal_handler(sig, frame):
 
 
 def heartbeat_routine():
+    header = {api_key.AUTH: "Bearer {}".format(cluster_token)}
     while heartbeat_running:
         response = requests.post(get_url("{}/{}".format(HEARTBEAT_ENDPOINT, worker_id)), headers=header, data='')
         if response.status_code != SUCCESS_CODE:
@@ -50,7 +51,9 @@ def heartbeat_routine():
 
 
 def worker_routine():
+    event_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(event_loop)
+    header = {api_key.AUTH: "Bearer {}".format(cluster_token)}
 
     while worker_running:
         # poll from queue
@@ -80,7 +83,8 @@ def worker_routine():
                 {"logs": {"stdout": b"The container crashed", "stderr": bytes(str(ex), "utf-8")}, "success": False}
             ]
 
-        job_stdout = "\n".join([r["logs"]["stdout"].decode("utf-8") for r in job_results])
+        decoded_job_stdout = [r["logs"]["stdout"].decode("utf-8") for r in job_results]
+        job_stdout = "\n".join(decoded_job_stdout)
         job_stderr = "\n".join([r["logs"]["stderr"].decode("utf-8") for r in job_results])
 
         # remove logs from result array because logs can be bulky we will store then separately
@@ -92,7 +96,8 @@ def worker_routine():
             logger.info("Job stdout:\n" + job_stdout)
             logger.info("Job stderr:\n" + job_stderr)
 
-        grading_job_result = {api_key.RESULTS: job_results, api_key.SUCCESS: job_results[-1]["success"],
+        grading_job_result = {api_key.RESULTS: job_results,
+                              api_key.SUCCESS: job_results[-1]["success"],
                               api_key.LOGS: {'stdout': job_stdout, 'stderr': job_stderr},
                               api_key.GRADING_JOB_ID: job_id}
 
@@ -108,6 +113,8 @@ def register_node():
     global worker_id
     global worker_running
     global heartbeat_running
+
+    header = {api_key.AUTH: "Bearer {}".format(cluster_token)}
 
     response = requests.get(get_url("{}/{}".format(GRADER_REGISTER_ENDPOINT, socket.gethostname())), headers=header)
     if response.status_code != SUCCESS_CODE:
@@ -128,16 +135,15 @@ def register_node():
         exit(-1)
 
 
-if __name__ == "__main__":
-    # check valid usage
-    if len(sys.argv) != 2:
-        print_usage()
-        exit(-1)
+def main(args):
+    global cluster_token
+    global worker_running
+    global heartbeat_running
+    cluster_token = args.cluster_token
 
     signal.signal(signal.SIGINT, signal_handler)
 
     # register node to server
-    header = {api_key.AUTH: "Bearer {}".format(sys.argv[1])}
     register_node()
 
     # run the grader on two separate threads. If any of the routines fail, the grader shuts down
@@ -147,3 +153,11 @@ if __name__ == "__main__":
     worker_running = False
     heartbeat_running = False
     executor.shutdown()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser('Broadway Grader')
+    parser.add_argument('cluster_token', help='Token from broadway api')
+    args = parser.parse_args()
+
+    main(args)
