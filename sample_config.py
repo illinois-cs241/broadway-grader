@@ -14,3 +14,4 @@ USE_SSL = True
 HEARTBEAT_ENDPOINT = "/api/v1/heartbeat"
 GRADING_JOB_ENDPOINT = "/api/v1/grading_job"
 GRADER_REGISTER_ENDPOINT = "/api/v1/worker"
+WORKER_WS_ENDPOINT = "/api/v1/worker_ws"
