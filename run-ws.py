@@ -39,13 +39,16 @@ async def run(token, worker_id):
     hostname = socket.gethostname()
 
     async with websockets.connect(url, extra_headers=headers) as ws:
-        await ws.send(json.dumps({
-            "type": "register",
-            "args": {"hostname": hostname},
-        }))
-
         # poll job
         try:
+            await ws.send(json.dumps({
+                "type": "register",
+                "args": {"hostname": hostname},
+            }))
+
+            ack = json.loads(await ws.recv())
+            assert ack["success"]
+
             while True:
                 job = json.loads(await ws.recv())
 
