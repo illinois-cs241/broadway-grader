@@ -103,7 +103,7 @@ async def run(token, worker_id):
                 }))
 
         except websockets.ConnectionClosed as e:
-            logger.critical("connection closed", e.code, e.reason)
+            logger.critical("connection closed: {}".format(repr(e)))
 
         except Exception as e:
             logger.critical("failed to pull job: {}".format(repr(e)))
