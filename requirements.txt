@@ -1,2 +1,2 @@
-git+https://github.com/illinois-cs241/chainlink@0.0.2
+git+https://github.com/illinois-cs241/chainlink@0.0.3
 websockets

@@ -62,7 +62,7 @@ async def run(token, worker_id):
                 # execute job
                 try:
                     chain = Chainlink(stages, workdir=os.getcwd())
-                    job_results = await chain.run({})
+                    job_results = await chain.run_async({})
                 except Exception as ex:
                     logger.critical("grading job failed with exception:\n{}", ex)
                     job_results = [
