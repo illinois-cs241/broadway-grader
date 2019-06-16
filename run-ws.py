@@ -1,6 +1,7 @@
 import os
 import json
 import socket
+import signal
 import asyncio
 import logging
 import argparse
@@ -47,7 +48,9 @@ async def run(token, worker_id):
             }))
 
             ack = json.loads(await ws.recv())
-            assert ack["success"]
+
+            if not ack["success"]:
+                raise Exception("failed to pull job")
 
             while True:
                 job = json.loads(await ws.recv())
@@ -106,7 +109,7 @@ async def run(token, worker_id):
             logger.critical("connection closed: {}".format(repr(e)))
 
         except Exception as e:
-            logger.critical("failed to pull job: {}".format(repr(e)))
+            logger.critical("unexpected error: {}".format(repr(e)))
 
 
 def parse_args():
@@ -116,6 +119,16 @@ def parse_args():
     return parser.parse_args()
 
 
+def shutdown(sig, loop):
+    logger.info("signal received: {}, shutting down".format(signal.Signals(sig).name))
+    loop.stop()
+
 if __name__ == "__main__":
     args = parse_args()
-    asyncio.get_event_loop().run_until_complete(run(args.token, args.worker_id))
+
+    loop = asyncio.get_event_loop()
+
+    loop.add_signal_handler(signal.SIGINT, lambda: loop.create_task(shutdown(signal.SIGINT, loop)))
+    loop.create_task(run(args.token, args.worker_id))
+
+    loop.run_forever()
