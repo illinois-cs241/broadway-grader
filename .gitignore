@@ -113,5 +113,3 @@ dmypy.json
 .idea/
 node_modules/
 logs/
-
-config.py

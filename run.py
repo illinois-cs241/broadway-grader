@@ -13,7 +13,6 @@ import requests
 from chainlink import Chainlink
 
 from config import *
-from grader.utils import get_url
 import grader.api_keys as api_keys
 
 # globals

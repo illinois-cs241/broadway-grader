@@ -7,7 +7,7 @@ import logging
 import argparse
 import websockets
 
-from jsonschema import validate
+from jsonschema import validate, ValidationError, SchemaError
 from chainlink import Chainlink
 
 import grader.api_keys as api_keys
@@ -53,8 +53,9 @@ async def exec_job(job):
 
     logger.info("finished job {}".format(job_id))
 
-    logger.info("job stdout:\n" + job_stdout)
-    logger.info("job stderr:\n" + job_stderr)
+    if VERBOSE:
+        logger.info("job stdout:\n" + job_stdout)
+        logger.info("job stderr:\n" + job_stderr)
 
     return {
         api_keys.RESULTS: job_results,
@@ -62,6 +63,7 @@ async def exec_job(job):
         api_keys.LOGS: {"stdout": job_stdout, "stderr": job_stderr},
         api_keys.GRADING_JOB_ID: job_id,
     }
+
 
 async def run(token, worker_id):
     url = "{}://{}:{}{}{}/{}".format(
@@ -87,6 +89,8 @@ async def run(token, worker_id):
             if not ack["success"]:
                 raise Exception("failed to register")
 
+            logger.info("registered as {}".format(worker_id))
+
             while True:
                 job = json.loads(await ws.recv())
 
@@ -102,8 +106,11 @@ async def run(token, worker_id):
         except websockets.ConnectionClosed as e:
             logger.critical("connection closed: {}".format(repr(e)))
 
-        except Exception as e:
-            logger.critical("unexpected error: {}".format(repr(e)))
+        except ValidationError as e:
+            logger.critical("validation error: {}".format(repr(e)))
+
+        except SchemaError as e:
+            logger.critical("schema error: {}".format(repr(e)))
 
 
 def parse_args():
@@ -113,16 +120,22 @@ def parse_args():
     return parser.parse_args()
 
 
-def shutdown(sig, loop):
+def shutdown(sig, task):
     logger.info("signal received: {}, shutting down".format(signal.Signals(sig).name))
-    loop.stop()
+    task.cancel()
+
 
 if __name__ == "__main__":
     args = parse_args()
 
     loop = asyncio.get_event_loop()
+    task = loop.create_task(run(args.token, args.worker_id))
 
-    loop.add_signal_handler(signal.SIGINT, lambda: loop.create_task(shutdown(signal.SIGINT, loop)))
-    loop.create_task(run(args.token, args.worker_id))
+    loop.add_signal_handler(signal.SIGINT, lambda: shutdown(signal.SIGINT, task))
 
-    loop.run_forever()
+    try:
+        loop.run_until_complete(task)
+    except asyncio.CancelledError:
+        logger.info("task cancelled")
+    except Exception as e:
+        logger.critical("unexpected error: {}".format(repr(e)))
